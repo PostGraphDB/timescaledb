@@ -215,27 +215,37 @@ ORDER BY 1,
     2,
     3,
     4;
-                                                      QUERY PLAN                                                       
------------------------------------------------------------------------------------------------------------------------
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
  Sort (actual rows=10 loops=1)
-   Sort Key: _hyper_1_5_chunk."time", _hyper_1_5_chunk.device_id, _hyper_1_5_chunk.device_id_peer, _hyper_1_5_chunk.v0
+   Sort Key: metrics_ordered_idx."time", metrics_ordered_idx.device_id, metrics_ordered_idx.device_id_peer, metrics_ordered_idx.v0
    Sort Method: quicksort 
    ->  Limit (actual rows=10 loops=1)
-         ->  Sort (actual rows=10 loops=1)
-               Sort Key: _hyper_1_5_chunk."time" DESC
-               Sort Method: top-N heapsort 
-               ->  Append (actual rows=1541 loops=1)
+         ->  Custom Scan (ChunkAppend) on metrics_ordered_idx (actual rows=10 loops=1)
+               Order: metrics_ordered_idx."time" DESC
+               ->  Sort (actual rows=5 loops=1)
+                     Sort Key: _hyper_1_5_chunk."time" DESC
+                     Sort Method: quicksort 
                      ->  Custom Scan (DecompressChunk) on _hyper_1_5_chunk (actual rows=5 loops=1)
                            ->  Seq Scan on compress_hyper_2_10_chunk (actual rows=5 loops=1)
+               ->  Sort (actual rows=5 loops=1)
+                     Sort Key: _hyper_1_4_chunk."time" DESC
+                     Sort Method: top-N heapsort 
                      ->  Custom Scan (DecompressChunk) on _hyper_1_4_chunk (actual rows=48 loops=1)
                            ->  Seq Scan on compress_hyper_2_9_chunk (actual rows=1 loops=1)
-                     ->  Custom Scan (DecompressChunk) on _hyper_1_3_chunk (actual rows=48 loops=1)
-                           ->  Seq Scan on compress_hyper_2_8_chunk (actual rows=1 loops=1)
-                     ->  Custom Scan (DecompressChunk) on _hyper_1_2_chunk (actual rows=960 loops=1)
-                           ->  Seq Scan on compress_hyper_2_7_chunk (actual rows=5 loops=1)
-                     ->  Custom Scan (DecompressChunk) on _hyper_1_1_chunk (actual rows=480 loops=1)
-                           ->  Seq Scan on compress_hyper_2_6_chunk (actual rows=5 loops=1)
-(18 rows)
+               ->  Sort (never executed)
+                     Sort Key: _hyper_1_3_chunk."time" DESC
+                     ->  Custom Scan (DecompressChunk) on _hyper_1_3_chunk (never executed)
+                           ->  Seq Scan on compress_hyper_2_8_chunk (never executed)
+               ->  Sort (never executed)
+                     Sort Key: _hyper_1_2_chunk."time" DESC
+                     ->  Custom Scan (DecompressChunk) on _hyper_1_2_chunk (never executed)
+                           ->  Seq Scan on compress_hyper_2_7_chunk (never executed)
+               ->  Sort (never executed)
+                     Sort Key: _hyper_1_1_chunk."time" DESC
+                     ->  Custom Scan (DecompressChunk) on _hyper_1_1_chunk (never executed)
+                           ->  Seq Scan on compress_hyper_2_6_chunk (never executed)
+(28 rows)
 
 -- should have ordered DecompressChunk path because segmentby columns have equality constraints
 :PREFIX
