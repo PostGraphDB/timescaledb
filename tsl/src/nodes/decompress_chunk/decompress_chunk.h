@@ -6,6 +6,7 @@
 #ifndef TIMESCALEDB_DECOMPRESS_CHUNK_H
 #define TIMESCALEDB_DECOMPRESS_CHUNK_H
 
+#include <nodes/parsenodes.h>
 #include <postgres.h>
 #include <nodes/bitmapset.h>
 #include <nodes/extensible.h>
@@ -20,6 +21,9 @@ typedef struct CompressionInfo
 	RangeTblEntry *chunk_rte;
 	RangeTblEntry *compressed_rte;
 	RangeTblEntry *ht_rte;
+#if PG16_GE
+	RTEPermissionInfo *ht_perminfo;
+#endif
 
 	int hypertable_id;
 	List *hypertable_compression_info;

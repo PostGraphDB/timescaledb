@@ -71,13 +71,18 @@ build_decompression_map(DecompressChunkPath *path, List *scan_tlist, Bitmapset *
 	bool missing_sequence = path->needs_sequence_num;
 	Bitmapset *chunk_attrs_found = NULL;
 
+#if PG16_LT
+	Bitmapset *selectedCols = path->info->ht_rte->selectedCols;
+#else
+	Bitmapset *selectedCols = path->info->ht_perminfo->selectedCols;
+#endif
 	/*
 	 * FIXME this way to determine which columns are used is actually wrong, see
 	 * https://github.com/timescale/timescaledb/issues/4195#issuecomment-1104238863
 	 * Left as is for now, because changing it uncovers a whole new story with
 	 * ctid.
 	 */
-	check_for_system_columns(path->info->ht_rte->selectedCols);
+	check_for_system_columns(selectedCols);
 
 	/*
 	 * We allow tableoid system column, it won't be in the targetlist but will

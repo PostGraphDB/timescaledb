@@ -15,6 +15,7 @@
 #include <optimizer/optimizer.h>
 #include <optimizer/pathnode.h>
 #include <optimizer/paths.h>
+#include <parser/parse_relation.h>
 #include <parser/parsetree.h>
 #include <utils/builtins.h>
 #include <utils/lsyscache.h>
@@ -327,12 +328,18 @@ build_compressioninfo(PlannerInfo *root, Hypertable *ht, RelOptInfo *chunk_rel)
 	{
 		appinfo = ts_get_appendrelinfo(root, chunk_rel->relid, false);
 		info->ht_rte = planner_rt_fetch(appinfo->parent_relid, root);
+#if PG16_GE
+		info->ht_perminfo = getRTEPermissionInfo(root->parse->rteperminfos, info->ht_rte);
+#endif
 	}
 	else
 	{
 		Assert(chunk_rel->reloptkind == RELOPT_BASEREL);
 		info->single_chunk = true;
 		info->ht_rte = info->chunk_rte;
+#if PG16_GE
+		info->ht_perminfo = getRTEPermissionInfo(root->parse->rteperminfos, info->chunk_rte);
+#endif
 	}
 
 	info->hypertable_id = ht->fd.id;
@@ -1484,6 +1491,17 @@ decompress_chunk_add_plannerinfo(PlannerInfo *root, CompressionInfo *info, Chunk
 
 	root->simple_rel_array[compressed_index] = NULL;
 
+#if PG16_GE
+	/* add perminfo for the new RTE */
+	RTEPermissionInfo *perminfo =
+		addRTEPermissionInfo(&root->parse->rteperminfos, info->compressed_rte);
+	perminfo->requiredPerms = 0;
+	perminfo->checkAsUser = InvalidOid; /* not set-uid by default, either */
+	perminfo->selectedCols = NULL;
+	perminfo->insertedCols = NULL;
+	perminfo->updatedCols = NULL;
+#endif
+
 	compressed_rel = build_simple_rel(root, compressed_index, NULL);
 	/* github issue :1558
 	 * set up top_parent_relids for this rel as the same as the
@@ -1655,11 +1673,15 @@ decompress_chunk_make_rte(Oid compressed_relid, LOCKMODE lockmode)
 	rte->inh = false;
 	rte->inFromCl = false;
 
+#if PG16_LT
 	rte->requiredPerms = 0;
 	rte->checkAsUser = InvalidOid; /* not set-uid by default, either */
 	rte->selectedCols = NULL;
 	rte->insertedCols = NULL;
 	rte->updatedCols = NULL;
+#else
+	rte->perminfoindex = 0;
+#endif
 
 	return rte;
 }
