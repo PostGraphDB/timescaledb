@@ -7,29 +7,16 @@
 #define TIMESCALEDB_TSL_COMPRESSION_COMPRESSION_H
 
 #include <postgres.h>
-
 #include <c.h>
 #include <executor/tuptable.h>
 #include <fmgr.h>
 #include <lib/stringinfo.h>
-
-#include <access/heapam.h>
 #include <utils/relcache.h>
 
 typedef struct BulkInsertStateData *BulkInsertState;
 
 #include <nodes/execnodes.h>
-#include <utils/date.h>
-#include <utils/lsyscache.h>
-#include <utils/relcache.h>
-#include <utils/timestamp.h>
-
 #include "segment_meta.h"
-
-/* Normal compression uses 1k rows, but the regression tests use up to 1015. */
-#ifndef GLOBAL_MAX_ROWS_PER_COMPRESSION
-#define GLOBAL_MAX_ROWS_PER_COMPRESSION 1015
-#endif
 
 #include "compat/compat.h"
 /*
