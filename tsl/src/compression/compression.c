@@ -83,6 +83,21 @@ DecompressionIterator *(*tsl_get_decompression_iterator_init(CompressionAlgorith
 		return definitions[algorithm].iterator_init_forward;
 }
 
+ArrowArray *
+tsl_try_decompress_all(CompressionAlgorithms algorithm, Datum compressed_data, Oid element_type)
+{
+	if (algorithm >= _END_COMPRESSION_ALGORITHMS)
+		elog(ERROR, "invalid compression algorithm %d", algorithm);
+
+	if (definitions[algorithm].decompress_all_forward_direction)
+	{
+		return definitions[algorithm].decompress_all_forward_direction(compressed_data,
+																	   element_type);
+	}
+
+	return NULL;
+}
+
 static Tuplesortstate *compress_chunk_sort_relation(Relation in_rel, int n_keys,
 													const ColumnCompressionInfo **keys);
 static void row_compressor_process_ordered_slot(RowCompressor *row_compressor, TupleTableSlot *slot,

@@ -19,6 +19,8 @@
 #include "float_utils.h"
 #include "adts/bit_array.h"
 #include "compression/simple8b_rle.h"
+#include "compression/simple8b_rle_bitmap.h"
+#include "float_utils.h"
 
 /*
  * Gorilla compressed data is stored as
@@ -815,6 +817,83 @@ gorilla_decompression_iterator_try_next_reverse(DecompressionIterator *iter_base
 	return convert_from_internal(gorilla_decompression_iterator_try_next_reverse_internal(
 									 (GorillaDecompressionIterator *) iter_base),
 								 iter_base->element_type);
+}
+
+/*
+ * Decompress packed 6bit values in lanes that contain a round number of both
+ * packed and unpacked bytes -- 4 6-bit values are packed into 3 8-bit values.
+ */
+pg_attribute_always_inline static void
+unpack_leading_zeros_array(BitArray *bitarray, uint8 *restrict dest)
+{
+#define LANE_INPUTS 3
+#define LANE_OUTPUTS 4
+	StaticAssertExpr(BITS_PER_LEADING_ZEROS * LANE_OUTPUTS == 8 * LANE_INPUTS,
+					 "the numbers of input and output lanes do not add up");
+
+	const int n_packed = bitarray->buckets.num_elements * sizeof(uint64);
+	const uint8 *restrict packed = ((uint8 *) bitarray->buckets.data);
+
+	/*
+	 * We have two more arrays after leading zeros, so we don't care if the
+	 * reads of final bytes run into them and we unpack some nonsense. This
+	 * means we can always work in full lanes.
+	 */
+	const int n_lanes = (n_packed + LANE_INPUTS - 1) / LANE_INPUTS;
+	for (int lane = 0; lane < n_lanes; lane++)
+	{
+		uint8 *restrict lane_dest = &dest[lane * LANE_OUTPUTS];
+		const uint8 *restrict lane_src = &packed[lane * LANE_INPUTS];
+		for (int output_in_lane = 0; output_in_lane < LANE_OUTPUTS; output_in_lane++)
+		{
+			const int startbit_abs = output_in_lane * BITS_PER_LEADING_ZEROS;
+			const int startbit_rel = startbit_abs % 8;
+			const int offs = 8 - startbit_rel;
+
+			const uint8 this_input = lane_src[startbit_abs / 8];
+			const uint8 next_input = lane_src[(startbit_abs + BITS_PER_LEADING_ZEROS - 1) / 8];
+
+			uint8 output = this_input >> startbit_rel;
+			output |= ((uint64) next_input) << offs;
+			output &= (1ull << BITS_PER_LEADING_ZEROS) - 1ull;
+
+			lane_dest[output_in_lane] = output;
+		}
+	}
+#undef LANE_INPUTS
+#undef LANE_OUTPUTS
+}
+
+/* Bulk gorilla decompression, specialized for supported data types. */
+
+#define ELEMENT_TYPE uint8
+#include "simple8b_rle_decompress_all.h"
+#undef ELEMENT_TYPE
+
+#define ELEMENT_TYPE uint32
+#include "gorilla_impl.c"
+#undef ELEMENT_TYPE
+
+#define ELEMENT_TYPE uint64
+#include "gorilla_impl.c"
+#undef ELEMENT_TYPE
+
+ArrowArray *
+gorilla_decompress_all_forward_direction(Datum datum, Oid element_type)
+{
+	CompressedGorillaData gorilla_data;
+	compressed_gorilla_data_init_from_datum(&gorilla_data, datum);
+
+	switch (element_type)
+	{
+		case FLOAT8OID:
+			return gorilla_decompress_all_uint64(&gorilla_data);
+		case FLOAT4OID:
+			return gorilla_decompress_all_uint32(&gorilla_data);
+		default:
+			elog(ERROR, "type oid %d is not supported for gorilla decompression", element_type);
+			return NULL;
+	}
 }
 
 /*************
