@@ -160,7 +160,7 @@ simple8brle_bitmap_decompress(Simple8bRleSerialized *compressed)
 	result.num_ones = num_ones;
 
 	/* Sanity check. */
-#ifndef NDEBUG
+#ifndef USE_ASSERT_CHECKING
 	int num_ones_2 = 0;
 	for (int i = 0; i < num_elements; i++)
 	{

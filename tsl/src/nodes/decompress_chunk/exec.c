@@ -21,6 +21,7 @@
 
 #include "compat/compat.h"
 #include "compression/array.h"
+#include "compression/arrow_c_data_interface.h"
 #include "compression/compression.h"
 #include "guc.h"
 #include "nodes/decompress_chunk/decompress_chunk.h"
@@ -209,7 +210,10 @@ decompress_set_batch_state_to_unused(DecompressChunkState *chunk_state, int batc
 		ExecClearTuple(batch_state->decompressed_slot_scan);
 
 	MemoryContextReset(batch_state->per_batch_context);
-	MemoryContextReset(batch_state->arrow_context);
+	if (batch_state->arrow_context)
+	{
+		MemoryContextReset(batch_state->arrow_context);
+	}
 
 	chunk_state->unused_batch_states = bms_add_member(chunk_state->unused_batch_states, batch_id);
 }
@@ -260,12 +264,6 @@ decompress_initialize_batch_state(DecompressChunkState *chunk_state,
 														   /* minContextSize = */ 0,
 														   /* initBlockSize = */ 64 * 1024,
 														   /* maxBlockSize = */ 64 * 1024);
-
-	batch_state->arrow_context = AllocSetContextCreate(CurrentMemoryContext,
-													   "DecompressChunk Arrow arrays",
-													   /* minContextSize = */ 0,
-													   /* initBlockSize = */ 64 * 1024,
-													   /* maxBlockSize = */ 64 * 1024);
 
 	batch_state->columns =
 		palloc0(list_length(chunk_state->decompression_map) * sizeof(DecompressChunkColumnState));
@@ -614,8 +612,6 @@ decompress_initialize_batch(DecompressChunkState *chunk_state, DecompressBatchSt
 				/* Decompress the entire batch if it is supported. */
 				CompressedDataHeader *header = (CompressedDataHeader *) PG_DETOAST_DATUM(value);
 
-				MemoryContext context_before_decompression =
-					MemoryContextSwitchTo(batch_state->arrow_context);
 				ArrowArray *arrow = NULL;
 				if (!chunk_state->reverse && !chunk_state->sorted_merge_append &&
 					ts_guc_enable_bulk_decompression)
@@ -631,11 +627,24 @@ decompress_initialize_batch(DecompressChunkState *chunk_state, DecompressBatchSt
 					 * merge plans. They involve keeping many open batches at
 					 * the same time, so the memory usage might increase greatly.
 					 */
+					if (batch_state->arrow_context == NULL)
+					{
+						batch_state->arrow_context =
+							AllocSetContextCreate(CurrentMemoryContext,
+												  "DecompressChunk Arrow arrays",
+												  /* minContextSize = */ 0,
+												  /* initBlockSize = */ 64 * 1024,
+												  /* maxBlockSize = */ 64 * 1024);
+					}
+
+					MemoryContext context_before_decompression =
+						MemoryContextSwitchTo(batch_state->arrow_context);
+
 					arrow = tsl_try_decompress_all(header->compression_algorithm,
 												   PointerGetDatum(header),
 												   column->typid);
+					MemoryContextSwitchTo(context_before_decompression);
 				}
-				MemoryContextSwitchTo(context_before_decompression);
 
 				if (arrow)
 				{

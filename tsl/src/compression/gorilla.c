@@ -14,12 +14,14 @@
 #include <utils/builtins.h>
 #include <utils/memutils.h>
 
-#include "compression/compression.h"
 #include "compression/gorilla.h"
-#include "float_utils.h"
+
 #include "adts/bit_array.h"
+#include "compression/arrow_c_data_interface.h"
+#include "compression/compression.h"
 #include "compression/simple8b_rle.h"
 #include "compression/simple8b_rle_bitmap.h"
+#include "float_utils.h"
 #include "float_utils.h"
 
 /*
@@ -879,7 +881,7 @@ unpack_leading_zeros_array(BitArray *bitarray, uint8 *restrict dest)
 #undef ELEMENT_TYPE
 
 ArrowArray *
-gorilla_decompress_all_forward_direction(Datum datum, Oid element_type)
+gorilla_decompress_all(Datum datum, Oid element_type)
 {
 	CompressedGorillaData gorilla_data;
 	compressed_gorilla_data_init_from_datum(&gorilla_data, datum);
@@ -892,7 +894,6 @@ gorilla_decompress_all_forward_direction(Datum datum, Oid element_type)
 			return gorilla_decompress_all_uint32(&gorilla_data);
 		default:
 			elog(ERROR, "type oid %d is not supported for gorilla decompression", element_type);
-			return NULL;
 	}
 }
 

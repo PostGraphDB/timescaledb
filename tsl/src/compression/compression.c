@@ -44,6 +44,7 @@
 #include "chunk.h"
 #include "create.h"
 #include "custom_type_cache.h"
+#include "arrow_c_data_interface.h"
 #include "debug_point.h"
 #include "deltadelta.h"
 #include "dictionary.h"
@@ -89,10 +90,9 @@ tsl_try_decompress_all(CompressionAlgorithms algorithm, Datum compressed_data, O
 	if (algorithm >= _END_COMPRESSION_ALGORITHMS)
 		elog(ERROR, "invalid compression algorithm %d", algorithm);
 
-	if (definitions[algorithm].decompress_all_forward_direction)
+	if (definitions[algorithm].decompress_all)
 	{
-		return definitions[algorithm].decompress_all_forward_direction(compressed_data,
-																	   element_type);
+		return definitions[algorithm].decompress_all(compressed_data, element_type);
 	}
 
 	return NULL;

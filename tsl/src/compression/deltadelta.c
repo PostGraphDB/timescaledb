@@ -20,6 +20,7 @@
 
 #include <utils.h>
 
+#include "compression/arrow_c_data_interface.h"
 #include "compression/compression.h"
 #include "compression/simple8b_rle.h"
 #include "compression/simple8b_rle_bitmap.h"
@@ -587,7 +588,7 @@ delta_delta_decompression_iterator_try_next_forward(DecompressionIterator *iter)
 #undef ELEMENT_TYPE
 
 ArrowArray *
-delta_delta_decompress_all_forward_direction(Datum compressed_data, Oid element_type)
+delta_delta_decompress_all(Datum compressed_data, Oid element_type)
 {
 	switch (element_type)
 	{
@@ -602,7 +603,6 @@ delta_delta_decompress_all_forward_direction(Datum compressed_data, Oid element_
 			return delta_delta_decompress_all_uint16(compressed_data);
 		default:
 			elog(ERROR, "type oid %d is not supported for deltadelta decompression", element_type);
-			return NULL;
 	}
 }
 

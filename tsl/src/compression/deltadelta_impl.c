@@ -53,25 +53,25 @@ FUNCTION_NAME(delta_delta_decompress_all, ELEMENT_TYPE)(Datum compressed)
 	ELEMENT_TYPE current_delta = 0;
 	ELEMENT_TYPE current_element = 0;
 	uint64 *restrict source = deltas_zigzag;
-#define INNER_SIZE 8
-	Assert(n_notnull_padded % INNER_SIZE == 0);
-	for (int outer = 0; outer < n_notnull_padded; outer += INNER_SIZE)
+	/*
+	 * Manual unrolling speeds up this loop by about 10%. clang vectorizes
+	 * the zig_zag_decode part, but not the double-prefix-sum part.
+	 *
+	 * Also tried using SIMD prefix sum from here twice:
+	 * https://en.algorithmica.org/hpc/algorithms/prefix/, it's slower.
+	 */
+#define INNER_LOOP_SIZE 8
+	Assert(n_notnull_padded % INNER_LOOP_SIZE == 0);
+	for (int outer = 0; outer < n_notnull_padded; outer += INNER_LOOP_SIZE)
 	{
-		for (int inner = 0; inner < INNER_SIZE; inner++)
+		for (int inner = 0; inner < INNER_LOOP_SIZE; inner++)
 		{
-			/*
-			 * Manual unrolling speeds up this function by about 10%, but my
-			 * attempts to get clang to vectorize the double-prefix-sum part
-			 * have failed. Also tried SIMD prefix sum from here:
-			 * https://en.algorithmica.org/hpc/algorithms/prefix/
-			 * Only makes it slower.
-			 */
 			current_delta += zig_zag_decode(source[outer + inner]);
 			current_element += current_delta;
 			decompressed_values[outer + inner] = current_element;
 		}
 	}
-#undef INNER_SIZE
+#undef INNER_LOOP_SIZE
 
 	/* All data valid by default, we will fill in the nulls later. */
 	memset(validity_bitmap, 0xFF, validity_bitmap_bytes);

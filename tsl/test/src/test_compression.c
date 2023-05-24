@@ -25,6 +25,7 @@
 #include "test_utils.h"
 
 #include "compression/array.h"
+#include "compression/arrow_c_data_interface.h"
 #include "compression/dictionary.h"
 #include "compression/gorilla.h"
 #include "compression/deltadelta.h"
@@ -391,8 +392,7 @@ test_gorilla_double(bool have_nulls, bool have_random)
 	/* Forward decompression. */
 	DecompressionIterator *iter =
 		gorilla_decompression_iterator_from_datum_forward(PointerGetDatum(compressed), FLOAT8OID);
-	ArrowArray *bulk_result =
-		gorilla_decompress_all_forward_direction(PointerGetDatum(compressed), FLOAT8OID);
+	ArrowArray *bulk_result = gorilla_decompress_all(PointerGetDatum(compressed), FLOAT8OID);
 	for (int i = 0; i < TEST_ELEMENTS; i++)
 	{
 		DecompressResult r = gorilla_decompression_iterator_try_next_forward(iter);
@@ -550,8 +550,7 @@ test_delta3(bool have_nulls, bool have_random)
 	/* Forward decompression. */
 	DecompressionIterator *iter =
 		delta_delta_decompression_iterator_from_datum_forward(PointerGetDatum(compressed), INT8OID);
-	ArrowArray *bulk_result =
-		delta_delta_decompress_all_forward_direction(PointerGetDatum(compressed), INT8OID);
+	ArrowArray *bulk_result = delta_delta_decompress_all(PointerGetDatum(compressed), INT8OID);
 	for (int i = 0; i < 1015; i++)
 	{
 		DecompressResult r = delta_delta_decompression_iterator_try_next_forward(iter);
