@@ -894,6 +894,7 @@ gorilla_decompress_all(Datum datum, Oid element_type)
 			return gorilla_decompress_all_uint32(&gorilla_data);
 		default:
 			elog(ERROR, "type oid %d is not supported for gorilla decompression", element_type);
+			pg_unreachable();
 	}
 }
 
