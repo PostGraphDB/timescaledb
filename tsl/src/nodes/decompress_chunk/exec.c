@@ -630,7 +630,8 @@ decompress_initialize_batch(DecompressChunkState *chunk_state, DecompressBatchSt
 					if (batch_state->arrow_context == NULL)
 					{
 						batch_state->arrow_context =
-							AllocSetContextCreate(CurrentMemoryContext,
+							AllocSetContextCreate(MemoryContextGetParent(
+													  batch_state->per_batch_context),
 												  "DecompressChunk Arrow arrays",
 												  /* minContextSize = */ 0,
 												  /* initBlockSize = */ 64 * 1024,
