@@ -264,6 +264,8 @@ decompress_initialize_batch_state(DecompressChunkState *chunk_state,
 														   /* minContextSize = */ 0,
 														   /* initBlockSize = */ 64 * 1024,
 														   /* maxBlockSize = */ 64 * 1024);
+	/* Initialized on demand to save memory. */
+	batch_state->arrow_context = NULL;
 
 	batch_state->columns =
 		palloc0(list_length(chunk_state->decompression_map) * sizeof(DecompressChunkColumnState));
