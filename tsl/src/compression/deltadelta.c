@@ -602,7 +602,7 @@ delta_delta_decompress_all(Datum compressed_data, Oid element_type)
 		case INT2OID:
 			return delta_delta_decompress_all_uint16(compressed_data);
 		default:
-			elog(ERROR, "type oid %d is not supported for deltadelta decompression", element_type);
+			elog(ERROR, "type \"%d\" is not supported for deltadelta decompression", format_type_be(element_type));
 			pg_unreachable();
 	}
 }
