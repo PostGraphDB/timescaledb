@@ -40,7 +40,8 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 	unpack_leading_zeros_array(&gorilla_data->leading_zeros, all_leading_zeros);
 
 	int16 num_bit_widths;
-	const uint8 *restrict bit_widths = simple8brle_decompress_all_uint8(gorilla_data->num_bits_used_per_xor, &num_bit_widths);
+	const uint8 *restrict bit_widths =
+		simple8brle_decompress_all_uint8(gorilla_data->num_bits_used_per_xor, &num_bit_widths);
 
 	BitArray xors_bitarray = gorilla_data->xors;
 	BitArrayIterator xors_iterator;

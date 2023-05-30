@@ -107,22 +107,22 @@ typedef struct ArrowArray
 	void *private_data;
 } ArrowArray;
 
-
 /*
  * We don't use the schema but have to define it for completeness because we're
  * defining ARROW_C_DATA_INTERFACE macro.
  */
-struct ArrowSchema {
-  const char* format;
-  const char* name;
-  const char* metadata;
-  int64_t flags;
-  int64_t n_children;
-  struct ArrowSchema** children;
-  struct ArrowSchema* dictionary;
+struct ArrowSchema
+{
+	const char *format;
+	const char *name;
+	const char *metadata;
+	int64 flags;
+	int64 n_children;
+	struct ArrowSchema **children;
+	struct ArrowSchema *dictionary;
 
-  void (*release)(struct ArrowSchema*);
-  void* private_data;
+	void (*release)(struct ArrowSchema *);
+	void *private_data;
 };
 
 #endif
