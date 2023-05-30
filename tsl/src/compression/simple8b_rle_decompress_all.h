@@ -11,9 +11,9 @@
  * Specialization of bulk simple8brle decompression for a data type specified by
  * ELEMENT_TYPE macro.
  */
-static uint16
+static ELEMENT_TYPE *
 FUNCTION_NAME(simple8brle_decompress_all, ELEMENT_TYPE)(Simple8bRleSerialized *compressed,
-														ELEMENT_TYPE **decompressed_)
+														int16 *n_)
 {
 	const uint16 num_selector_slots =
 		simple8brle_num_selector_slots_for_num_blocks(compressed->num_blocks);
@@ -142,6 +142,6 @@ FUNCTION_NAME(simple8brle_decompress_all, ELEMENT_TYPE)(Simple8bRleSerialized *c
 	CheckCompressedData(decompressed_index >= n_total_values);
 	Assert(decompressed_index <= n_padded_values);
 
-	*decompressed_ = decompressed_values;
-	return n_total_values;
+	*n_ = n_total_values;
+	return decompressed_values;
 }

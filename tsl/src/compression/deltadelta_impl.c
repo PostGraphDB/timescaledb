@@ -24,8 +24,9 @@ FUNCTION_NAME(delta_delta_decompress_all, ELEMENT_TYPE)(Datum compressed)
 	Assert(header->has_nulls == 0 || header->has_nulls == 1);
 
 	/* Can't use element type here because of zig-zag encoding. */
-	uint64 *deltas_zigzag;
-	const int16 num_deltas = simple8brle_decompress_all_uint64(deltas_compressed, &deltas_zigzag);
+	int16 num_deltas;
+	const uint64 *restrict deltas_zigzag
+		= simple8brle_decompress_all_uint64(deltas_compressed, &num_deltas);
 
 	Simple8bRleBitmap nulls = { 0 };
 	if (has_nulls)
@@ -52,7 +53,6 @@ FUNCTION_NAME(delta_delta_decompress_all, ELEMENT_TYPE)(Datum compressed)
 	/* Now fill the data w/o nulls. */
 	ELEMENT_TYPE current_delta = 0;
 	ELEMENT_TYPE current_element = 0;
-	uint64 *restrict source = deltas_zigzag;
 	/*
 	 * Manual unrolling speeds up this loop by about 10%. clang vectorizes
 	 * the zig_zag_decode part, but not the double-prefix-sum part.
@@ -66,7 +66,7 @@ FUNCTION_NAME(delta_delta_decompress_all, ELEMENT_TYPE)(Datum compressed)
 	{
 		for (int inner = 0; inner < INNER_LOOP_SIZE; inner++)
 		{
-			current_delta += zig_zag_decode(source[outer + inner]);
+			current_delta += zig_zag_decode(deltas_zigzag[outer + inner]);
 			current_element += current_delta;
 			decompressed_values[outer + inner] = current_element;
 		}

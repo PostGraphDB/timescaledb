@@ -893,7 +893,7 @@ gorilla_decompress_all(Datum datum, Oid element_type)
 		case FLOAT4OID:
 			return gorilla_decompress_all_uint32(&gorilla_data);
 		default:
-			elog(ERROR, "type oid %d is not supported for gorilla decompression", element_type);
+			elog(ERROR, "type '%s' is not supported for gorilla decompression", format_type_be(element_type));
 			pg_unreachable();
 	}
 }
