@@ -9,9 +9,27 @@
  * standard for in-memory interchange of columnar data.
  *
  * https://arrow.apache.org/docs/format/CDataInterface.html
+ *
+ * Citing from the above link:
+ *
+ * Arrow C data interface defines a very small, stable set of C definitions that
+ * can be easily copied in any project’s source code and used for columnar data
+ * interchange in the Arrow format. For non-C/C++ languages and runtimes, it
+ * should be almost as easy to translate the C definitions into the
+ * corresponding C FFI declarations.
+ *
+ * Applications and libraries can therefore work with Arrow memory without
+ * necessarily using Arrow libraries or reinventing the wheel.
  */
 
 #pragma once
+
+#ifndef ARROW_C_DATA_INTERFACE
+#define ARROW_C_DATA_INTERFACE
+
+#define ARROW_FLAG_DICTIONARY_ORDERED 1
+#define ARROW_FLAG_NULLABLE 2
+#define ARROW_FLAG_MAP_KEYS_SORTED 4
 
 typedef struct ArrowArray
 {
@@ -89,8 +107,28 @@ typedef struct ArrowArray
 	void *private_data;
 } ArrowArray;
 
+
+/*
+ * We don't use the schema but have to define it for completeness because we're
+ * defining ARROW_C_DATA_INTERFACE macro.
+ */
+struct ArrowSchema {
+  const char* format;
+  const char* name;
+  const char* metadata;
+  int64_t flags;
+  int64_t n_children;
+  struct ArrowSchema** children;
+  struct ArrowSchema* dictionary;
+
+  void (*release)(struct ArrowSchema*);
+  void* private_data;
+};
+
+#endif
+
 static pg_attribute_always_inline bool
-arrow_validity_bitmap_get(const uint64 *bitmap, int row_number)
+arrow_row_is_valid(const uint64 *bitmap, int row_number)
 {
 	const int qword_index = row_number / 64;
 	const int bit_index = row_number % 64;
@@ -99,7 +137,7 @@ arrow_validity_bitmap_get(const uint64 *bitmap, int row_number)
 }
 
 static pg_attribute_always_inline void
-arrow_validity_bitmap_set(uint64 *bitmap, int row_number, bool value)
+arrow_set_row_validity(uint64 *bitmap, int row_number, bool value)
 {
 	const int qword_index = row_number / 64;
 	const int bit_index = row_number % 64;
@@ -107,5 +145,5 @@ arrow_validity_bitmap_set(uint64 *bitmap, int row_number, bool value)
 
 	bitmap[qword_index] = (bitmap[qword_index] & ~mask) | (((uint64) !!value) << bit_index);
 
-	Assert(arrow_validity_bitmap_get(bitmap, row_number) == value);
+	Assert(arrow_row_is_valid(bitmap, row_number) == value);
 }

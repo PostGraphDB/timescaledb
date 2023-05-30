@@ -400,12 +400,12 @@ test_gorilla_double(bool have_nulls, bool have_random)
 		if (r.is_null)
 		{
 			TestAssertTrue(nulls[i]);
-			TestAssertTrue(!arrow_validity_bitmap_get(bulk_result->buffers[0], i));
+			TestAssertTrue(!arrow_row_is_valid(bulk_result->buffers[0], i));
 		}
 		else
 		{
 			TestAssertTrue(!nulls[i]);
-			TestAssertTrue(arrow_validity_bitmap_get(bulk_result->buffers[0], i));
+			TestAssertTrue(arrow_row_is_valid(bulk_result->buffers[0], i));
 			TestAssertTrue(values[i] == DatumGetFloat8(r.val));
 			TestAssertTrue(values[i] == ((double *) bulk_result->buffers[1])[i]);
 		}
@@ -551,19 +551,19 @@ test_delta3(bool have_nulls, bool have_random)
 	DecompressionIterator *iter =
 		delta_delta_decompression_iterator_from_datum_forward(PointerGetDatum(compressed), INT8OID);
 	ArrowArray *bulk_result = delta_delta_decompress_all(PointerGetDatum(compressed), INT8OID);
-	for (int i = 0; i < 1015; i++)
+	for (int i = 0; i < TEST_ELEMENTS; i++)
 	{
 		DecompressResult r = delta_delta_decompression_iterator_try_next_forward(iter);
 		TestAssertTrue(!r.is_done);
 		if (r.is_null)
 		{
 			TestAssertTrue(nulls[i]);
-			TestAssertTrue(!arrow_validity_bitmap_get(bulk_result->buffers[0], i));
+			TestAssertTrue(!arrow_row_is_valid(bulk_result->buffers[0], i));
 		}
 		else
 		{
 			TestAssertTrue(!nulls[i]);
-			TestAssertTrue(arrow_validity_bitmap_get(bulk_result->buffers[0], i));
+			TestAssertTrue(arrow_row_is_valid(bulk_result->buffers[0], i));
 			TestAssertTrue(values[i] == DatumGetInt64(r.val));
 			TestAssertTrue(values[i] == ((int64 *) bulk_result->buffers[1])[i]);
 		}

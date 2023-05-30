@@ -65,7 +65,7 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool check_compressio
 
 		if (arrow)
 		{
-			const bool arrow_isnull = !!!arrow_validity_bitmap_get(arrow->buffers[0], n);
+			const bool arrow_isnull = !arrow_row_is_valid(arrow->buffers[0], n);
 			if (arrow_isnull != r.is_null)
 			{
 				ereport(ERROR,

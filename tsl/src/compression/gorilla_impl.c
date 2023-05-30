@@ -157,7 +157,7 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 
 			if (simple8brle_bitmap_get_at(&nulls, i))
 			{
-				arrow_validity_bitmap_set(validity_bitmap, i, false);
+				arrow_set_row_validity(validity_bitmap, i, false);
 			}
 			else
 			{
@@ -178,7 +178,7 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 		 */
 		for (int i = n_total; i < validity_bitmap_bytes * 8; i++)
 		{
-			arrow_validity_bitmap_set(validity_bitmap, i, false);
+			arrow_set_row_validity(validity_bitmap, i, false);
 		}
 	}
 

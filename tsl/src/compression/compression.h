@@ -82,7 +82,6 @@ typedef struct DecompressionIterator
 
 	Oid element_type;
 	DecompressResult (*try_next)(struct DecompressionIterator *);
-	ArrowArray (*decompress_all)(struct DecompressionIterator *);
 } DecompressionIterator;
 
 typedef struct SegmentInfo
