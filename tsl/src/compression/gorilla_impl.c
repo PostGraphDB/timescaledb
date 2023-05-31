@@ -87,9 +87,11 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 			Assert(next_leading_zeros_index < num_leading_zeros_padded);
 			current_leading_zeros = all_leading_zeros[next_leading_zeros_index++];
 
-			/* The value might be incorrect due to data corruption. */
-			CheckCompressedData(current_xor_bits <= 64);
-			CheckCompressedData(current_leading_zeros <= 64);
+			/*
+			 * More than 64 significant bits don't make sense. Exactly 64 we get for
+			 * the first encoded number.
+			 */
+			CheckCompressedData(current_leading_zeros + current_xor_bits <= 64);
 		}
 
 		const uint64 current_xor = bit_array_iter_next(&xors_iterator, current_xor_bits);

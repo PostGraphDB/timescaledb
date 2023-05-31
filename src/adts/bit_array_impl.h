@@ -112,7 +112,8 @@ bit_array_recv(const StringInfo buffer)
 			.num_elements = num_elements,
 			.max_elements = num_elements,
 			.ctx = CurrentMemoryContext,
-			.data = palloc(num_elements * sizeof(uint64)),
+			/* Add one-element padding so that we can relax the checks for incorrect data. */
+			.data = palloc((num_elements + 1) * sizeof(uint64)),
 		},
 	};
 
