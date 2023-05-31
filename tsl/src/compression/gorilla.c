@@ -22,7 +22,6 @@
 #include "compression/simple8b_rle.h"
 #include "compression/simple8b_rle_bitmap.h"
 #include "float_utils.h"
-#include "float_utils.h"
 
 /*
  * Gorilla compressed data is stored as

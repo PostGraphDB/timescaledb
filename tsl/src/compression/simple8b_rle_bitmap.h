@@ -8,8 +8,10 @@
  * This is a specialization of Simple8bRLE decoder for bitmaps, i.e. where the
  * elements are only 0 and 1. It also counts the number of ones.
  */
-#include "compression/simple8b_rle.h"
+
 #pragma once
+
+#include "compression/simple8b_rle.h"
 
 typedef struct Simple8bRleBitmap
 {

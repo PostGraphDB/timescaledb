@@ -125,6 +125,12 @@ struct ArrowSchema
 	void *private_data;
 };
 
+/*
+ * The include guard ARROW_C_DATA_INTERFACE is required by the Arrow docs to
+ * avoid redefinition of the Arrow structs in the third-party headers, but the
+ * following functions are not part of Arrow C Data Interface, so they are not
+ * under the guard.
+ */
 #endif
 
 static pg_attribute_always_inline bool
