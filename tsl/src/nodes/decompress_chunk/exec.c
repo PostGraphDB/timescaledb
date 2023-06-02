@@ -882,9 +882,9 @@ decompress_chunk_explain(CustomScanState *node, List *ancestors, ExplainState *e
 			ExplainPropertyBool("Sorted merge append", chunk_state->sorted_merge_append, es);
 		}
 
-		if (es->analyze && chunk_state->using_bulk_decompression)
+		if (es->analyze && (es->verbose || es->format != EXPLAIN_FORMAT_TEXT))
 		{
-			ExplainPropertyBool("Bulk Decompression", true, es);
+			ExplainPropertyBool("Bulk Decompression", chunk_state->using_bulk_decompression, es);
 		}
 	}
 }
