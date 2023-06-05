@@ -820,6 +820,8 @@ gorilla_decompression_iterator_try_next_reverse(DecompressionIterator *iter_base
 								 iter_base->element_type);
 }
 
+#define MAX_NUM_LEADING_ZEROS_PADDED (((GLOBAL_MAX_ROWS_PER_COMPRESSION + 63) / 64) * 64)
+
 /*
  * Decompress packed 6bit values in lanes that contain a round number of both
  * packed and unpacked bytes -- 4 6-bit values are packed into 3 8-bit values.
@@ -833,6 +835,8 @@ unpack_leading_zeros_array(BitArray *bitarray, uint8 *restrict dest)
 					 "the numbers of input and output lanes do not add up");
 
 	const int n_packed = bitarray->buckets.num_elements * sizeof(uint64);
+	CheckCompressedData(n_packed <= MAX_NUM_LEADING_ZEROS_PADDED);
+
 	const uint8 *restrict packed = ((uint8 *) bitarray->buckets.data);
 
 	/*

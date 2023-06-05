@@ -16,7 +16,6 @@
 typedef struct Simple8bRleBitmap
 {
 	char *bitmap_bools_;
-	int16 current_element;
 	int16 num_elements;
 	int16 num_ones;
 } Simple8bRleBitmap;
@@ -42,7 +41,6 @@ static Simple8bRleBitmap
 simple8brle_bitmap_decompress(Simple8bRleSerialized *compressed)
 {
 	Simple8bRleBitmap result;
-	result.current_element = 0;
 	result.num_elements = compressed->num_elements;
 
 	CheckCompressedData(compressed->num_elements <= GLOBAL_MAX_ROWS_PER_COMPRESSION);

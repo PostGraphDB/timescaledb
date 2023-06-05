@@ -35,8 +35,7 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 	BitArrayIterator leading_zeros_iterator;
 	bit_array_iterator_init(&leading_zeros_iterator, &leading_zeros_bitarray);
 
-#define num_leading_zeros_padded (((GLOBAL_MAX_ROWS_PER_COMPRESSION + 63) / 64) * 64)
-	uint8 all_leading_zeros[num_leading_zeros_padded];
+	uint8 all_leading_zeros[MAX_NUM_LEADING_ZEROS_PADDED];
 	unpack_leading_zeros_array(&gorilla_data->leading_zeros, all_leading_zeros);
 
 	int16 num_bit_widths;
@@ -64,12 +63,17 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 	CheckCompressedData(simple8brle_bitmap_get_at(&tag1s, 0) == 1);
 
 	/*
-	 * 1c) Unpack.
+	 * 1c) Sanity check: can't have more different elements than notnull elements.
+	 */
+	const int n_different = tag1s.num_elements;
+	CheckCompressedData(n_different <= n_notnull);
+
+	/*
+	 * 1d) Unpack.
 	 *
 	 * Note that the bit widths change often, so there's no sense in
 	 * having a fast path for stretches of tag1 == 0.
 	 */
-	const int n_different = tag1s.num_elements;
 	ELEMENT_TYPE prev = 0;
 	int next_bit_widths_index = 0;
 	int next_leading_zeros_index = 0;
@@ -84,7 +88,7 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 			Assert(next_bit_widths_index < num_bit_widths);
 			current_xor_bits = bit_widths[next_bit_widths_index++];
 
-			Assert(next_leading_zeros_index < num_leading_zeros_padded);
+			Assert(next_leading_zeros_index < MAX_NUM_LEADING_ZEROS_PADDED);
 			current_leading_zeros = all_leading_zeros[next_leading_zeros_index++];
 
 			/*
@@ -110,22 +114,24 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 	CheckCompressedData(simple8brle_bitmap_num_ones(&tag0s) == n_different);
 
 	/*
+	 * 2b) Sanity check: tag0s[0] == 1 -- the first element of the sequence is
+	 * always "different from the previous one".
+	 */
+	CheckCompressedData(simple8brle_bitmap_get_at(&tag0s, 0) == 1);
+
+	/*
 	 * 2b) Fill the repeated elements.
 	 */
 	int current_element = n_different - 1;
 	for (int i = n_notnull - 1; i >= 0; i--)
 	{
-		Assert(i >= current_element);
 		Assert(current_element >= 0);
-		if (simple8brle_bitmap_get_at(&tag0s, i) == 0)
+		Assert(current_element <= i);
+		decompressed_values[i] = decompressed_values[current_element];
+
+		if (simple8brle_bitmap_get_at(&tag0s, i))
 		{
-			/* Repeat this element. */
-			decompressed_values[i] = decompressed_values[current_element];
-		}
-		else
-		{
-			/* Move to another element. */
-			decompressed_values[i] = decompressed_values[current_element--];
+			current_element--;
 		}
 	}
 	Assert(current_element == -1);

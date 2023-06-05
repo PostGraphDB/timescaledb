@@ -34,15 +34,20 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool check_compressio
 		return -1;
 	}
 
-	Compressor *compressor = NULL;
-	if (check_compression)
-	{
-		compressor = definitions[algo].compressor_for_type(PGTYPE);
-	}
-
 	Datum compressed_data = definitions[algo].compressed_data_recv(&si);
 
-	ArrowArray *arrow = tsl_try_decompress_all(algo, compressed_data, PGTYPE);
+	ArrowArray *arrow;
+
+	/*
+	 * We'll use this simple trick to increase coverage: based on the input
+	 * length, we'll call first the bulk decompression or the row-by-row
+	 * decompression. Otherwise the one that is called last will be masked by
+	 * the check in the one that is called first.
+	 */
+	if (Size % 2 == 0)
+	{
+		arrow = tsl_try_decompress_all(algo, compressed_data, PGTYPE);
+	}
 
 	DecompressionIterator *iter = definitions[algo].iterator_init_forward(compressed_data, PGTYPE);
 
@@ -50,53 +55,79 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool check_compressio
 	int n = 0;
 	for (DecompressResult r = iter->try_next(iter); !r.is_done; r = iter->try_next(iter))
 	{
-		if (check_compression)
+		results[n++] = r;
+	}
+
+	/* See above. */
+	if (Size % 2 != 0)
+	{
+		Assert(arrow == NULL);
+		arrow = tsl_try_decompress_all(algo, compressed_data, PGTYPE);
+	}
+
+	/* Check that both ways of decompression match. */
+	if (arrow)
+	{
+		if (n != arrow->length)
 		{
-			if (r.is_null)
-			{
-				compressor->append_null(compressor);
-			}
-			else
-			{
-				compressor->append_val(compressor, r.val);
-			}
-			results[n] = r;
+			ereport(ERROR,
+					(errcode(ERRCODE_INTERNAL_ERROR),
+					 errmsg("the bulk decompression result does not match"),
+					 errdetail("Expected %d elements, got %d.", n, (int) arrow->length)));
 		}
 
-		if (arrow)
+		for (int i = 0; i < n; i++)
 		{
-			const bool arrow_isnull = !arrow_row_is_valid(arrow->buffers[0], n);
-			if (arrow_isnull != r.is_null)
+			const bool arrow_isnull = !arrow_row_is_valid(arrow->buffers[0], i);
+			if (arrow_isnull != results[i].is_null)
 			{
 				ereport(ERROR,
 						(errcode(ERRCODE_INTERNAL_ERROR),
 						 errmsg("the bulk decompression result does not match"),
 						 errdetail("Expected null %d, got %d at row %d.",
-								   r.is_null,
+								   results[i].is_null,
 								   arrow_isnull,
-								   n)));
+								   i)));
 			}
 
-			if (!r.is_null)
+			if (!results[i].is_null)
 			{
-				const CTYPE arrow_value = ((CTYPE *) arrow->buffers[1])[n];
-				const CTYPE rowbyrow_value = DATUM_TO_CTYPE(r.val);
+				const CTYPE arrow_value = ((CTYPE *) arrow->buffers[1])[i];
+				const CTYPE rowbyrow_value = DATUM_TO_CTYPE(results[i].val);
 				if (arrow_value != rowbyrow_value)
 				{
 					ereport(ERROR,
 							(errcode(ERRCODE_INTERNAL_ERROR),
 							 errmsg("the bulk decompression result does not match"),
-							 errdetail("At row %d\n", n)));
+							 errdetail("At row %d\n", i)));
 				}
 			}
 		}
-
-		n++;
 	}
 
-	if (!check_compression || n == 0)
+	if (!check_compression)
 	{
 		return n;
+	}
+
+	/*
+	 * Check that the result is still the same after we compress and decompress
+	 * back.
+	 *
+	 * 1) Compress.
+	 */
+	Compressor *compressor = definitions[algo].compressor_for_type(PGTYPE);
+
+	for (int i = 0; i < n; i++)
+	{
+		if (results[i].is_null)
+		{
+			compressor->append_null(compressor);
+		}
+		else
+		{
+			compressor->append_val(compressor, results[i].val);
+		}
 	}
 
 	compressed_data = (Datum) compressor->finish(compressor);
@@ -107,8 +138,7 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool check_compressio
 	};
 
 	/*
-	 * Check that the result is still the same after we compress and decompress
-	 * back.
+	 * 2) Decompress and check that it's the same.
 	 */
 	iter = definitions[algo].iterator_init_forward(compressed_data, PGTYPE);
 	int nn = 0;
