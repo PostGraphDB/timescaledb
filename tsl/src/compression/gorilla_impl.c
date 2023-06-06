@@ -96,6 +96,14 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 			 * the first encoded number.
 			 */
 			CheckCompressedData(current_leading_zeros + current_xor_bits <= 64);
+
+			/*
+			 * Theoretically, leading zeros + xor bits == 0 would mean that the
+			 * number is the same as the previous one, and it should have been
+			 * encoded as tag0s == 0. Howewer, we can encounter it in the corrupt
+			 * data. Shifting by 64 bytes left would be undefined behavior.
+			 */
+			CheckCompressedData(current_leading_zeros + current_xor_bits > 0);
 		}
 
 		const uint64 current_xor = bit_array_iter_next(&xors_iterator, current_xor_bits);

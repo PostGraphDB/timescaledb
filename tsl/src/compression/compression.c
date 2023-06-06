@@ -2099,7 +2099,7 @@ get_compression_algorithm(char *name)
 #undef DATUM_TO_CTYPE
 
 static int (*get_decompress_fn(int algo, Oid type))(const uint8 *Data, size_t Size,
-													bool check_compression)
+													bool extra_checks)
 {
 	if (algo == COMPRESSION_ALGORITHM_GORILLA && type == FLOAT8OID)
 	{
@@ -2161,8 +2161,7 @@ ts_read_compressed_data_file(PG_FUNCTION_ARGS)
 	Oid type = PG_GETARG_OID(1);
 
 	int res =
-		get_decompress_fn(algo,
-						  type)((const uint8 *) string, fsize, /* check_compression = */ true);
+		get_decompress_fn(algo, type)((const uint8 *) string, fsize, /* extra_checks = */ true);
 
 	PG_RETURN_INT32(res);
 }
@@ -2294,7 +2293,7 @@ ts_read_compressed_data_directory(PG_FUNCTION_ARGS)
  * has to catch the postgres exceptions normally produced for corrupt data.
  */
 static int
-llvm_fuzz_target_generic(int (*target)(const uint8_t *Data, size_t Size, bool check_compression),
+llvm_fuzz_target_generic(int (*target)(const uint8_t *Data, size_t Size, bool extra_checks),
 						 const uint8_t *Data, size_t Size)
 {
 	MemoryContextReset(CurrentMemoryContext);
@@ -2302,7 +2301,7 @@ llvm_fuzz_target_generic(int (*target)(const uint8_t *Data, size_t Size, bool ch
 	PG_TRY();
 	{
 		CHECK_FOR_INTERRUPTS();
-		target(Data, Size, /* check_compression = */ false);
+		target(Data, Size, /* extra_checks = */ false);
 	}
 	PG_CATCH();
 	{

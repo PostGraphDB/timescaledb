@@ -609,9 +609,11 @@ gorilla_decompression_iterator_try_next_forward_internal(GorillaDecompressionIte
 			simple8brle_decompression_iterator_try_next_forward(&iter->nulls);
 		/* Could slightly improve performance here by not returning a tail of non-null bits */
 		if (null.is_done)
+		{
 			return (DecompressResultInternal){
 				.is_done = true,
 			};
+		}
 
 		if (null.val != 0)
 		{
@@ -625,14 +627,18 @@ gorilla_decompression_iterator_try_next_forward_internal(GorillaDecompressionIte
 	tag0 = simple8brle_decompression_iterator_try_next_forward(&iter->tag0s);
 	/* if we don't have a null bitset, this will determine when we're done */
 	if (tag0.is_done)
+	{
 		return (DecompressResultInternal){
 			.is_done = true,
 		};
+	}
 
 	if (tag0.val == 0)
+	{
 		return (DecompressResultInternal){
 			.val = iter->prev_val,
 		};
+	}
 
 	tag1 = simple8brle_decompression_iterator_try_next_forward(&iter->tag1s);
 	CheckCompressedData(!tag1.is_done);
@@ -666,8 +672,7 @@ gorilla_decompression_iterator_try_next_forward_internal(GorillaDecompressionIte
 	CheckCompressedData(iter->prev_xor_bits_used + iter->prev_leading_zeroes > 0);
 
 	xor = bit_array_iter_next(&iter->xors, iter->prev_xor_bits_used);
-	if (iter->prev_leading_zeroes + iter->prev_xor_bits_used < 64)
-		xor <<= 64 - (iter->prev_leading_zeroes + iter->prev_xor_bits_used);
+	xor <<= 64 - (iter->prev_leading_zeroes + iter->prev_xor_bits_used);
 	iter->prev_val ^= xor;
 
 	return (DecompressResultInternal){
@@ -834,21 +839,22 @@ unpack_leading_zeros_array(BitArray *bitarray, uint8 *restrict dest)
 	StaticAssertExpr(BITS_PER_LEADING_ZEROS * LANE_OUTPUTS == 8 * LANE_INPUTS,
 					 "the numbers of input and output lanes do not add up");
 
-	const int n_packed = bitarray->buckets.num_elements * sizeof(uint64);
-	CheckCompressedData(n_packed <= MAX_NUM_LEADING_ZEROS_PADDED);
-
-	const uint8 *restrict packed = ((uint8 *) bitarray->buckets.data);
-
 	/*
-	 * We have two more arrays after leading zeros, so we don't care if the
-	 * reads of final bytes run into them and we unpack some nonsense. This
+	 * We have four bytes of padding after leading zeros, so we don't care if
+	 * the reads of final bytes run into them and we unpack some nonsense. This
 	 * means we can always work in full lanes.
+	 *
+	 * We do have to check that the result fits into the maximum number of rows,
+	 * because we get the length from user input.
 	 */
-	const int n_lanes = (n_packed + LANE_INPUTS - 1) / LANE_INPUTS;
+	const int n_bytes_packed = bitarray->buckets.num_elements * sizeof(uint64);
+	const int n_lanes = (n_bytes_packed + LANE_INPUTS - 1) / LANE_INPUTS;
+	CheckCompressedData(n_lanes * LANE_OUTPUTS <= MAX_NUM_LEADING_ZEROS_PADDED);
+
 	for (int lane = 0; lane < n_lanes; lane++)
 	{
 		uint8 *restrict lane_dest = &dest[lane * LANE_OUTPUTS];
-		const uint8 *restrict lane_src = &packed[lane * LANE_INPUTS];
+		const uint8 *restrict lane_src = &((uint8 *) bitarray->buckets.data)[lane * LANE_INPUTS];
 		for (int output_in_lane = 0; output_in_lane < LANE_OUTPUTS; output_in_lane++)
 		{
 			const int startbit_abs = output_in_lane * BITS_PER_LEADING_ZEROS;

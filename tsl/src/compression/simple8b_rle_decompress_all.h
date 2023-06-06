@@ -75,17 +75,13 @@ FUNCTION_NAME(simple8brle_decompress_all, ELEMENT_TYPE)(Simple8bRleSerialized *c
 	case (X):                                                                                      \
 	{                                                                                              \
 		/*                                                                                         \
-		 * Just skip it if the bit width is higher than that of the destination                    \
-		 * type. This allows us to generate more efficient specializations for                     \
-		 * narrow data types. We might encounter incorrect data, but here our                      \
-		 * task is not to overrun and segfault, not to report every                                \
-		 * inconsistency.                                                                          \
+		 * Error out it if the bit width is higher than that of the destination                    \
+		 * type. We could just skip it, but this way the result of e.g. gorilla                    \
+		 * decompression will be closer to what the row-by-row decompression                       \
+		 * produces, which is easier for testing.                                                  \
 		 */                                                                                        \
 		const uint8 bits_per_value = SIMPLE8B_BIT_LENGTH[X];                                       \
-		if (bits_per_value / 8 > sizeof(ELEMENT_TYPE))                                             \
-		{                                                                                          \
-			break;                                                                                 \
-		}                                                                                          \
+		CheckCompressedData(bits_per_value / 8 < sizeof(ELEMENT_TYPE));                            \
                                                                                                    \
 		/*                                                                                         \
 		 * The last block might have less values than normal, but we have                          \

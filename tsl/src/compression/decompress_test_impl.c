@@ -12,11 +12,11 @@
 
 /*
  * Try to decompress the given compressed data. Used for fuzzing and for checking
- * the examples found by fuzzing. For fuzzing we don't check that the
- * recompression result is the same.
+ * the examples found by fuzzing. For fuzzing we do less checks to keep it
+ * faster and the coverage space smaller.
  */
 static int
-FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool check_compression)
+FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool extra_checks)
 {
 	StringInfoData si = { .data = (char *) Data, .len = Size };
 
@@ -45,6 +45,11 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool check_compressio
 	for (DecompressResult r = iter->try_next(iter); !r.is_done; r = iter->try_next(iter))
 	{
 		results[n++] = r;
+	}
+
+	if (!extra_checks)
+	{
+		return n;
 	}
 
 	/* Check that both ways of decompression match. */
@@ -76,7 +81,20 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool check_compressio
 			{
 				const CTYPE arrow_value = ((CTYPE *) arrow->buffers[1])[i];
 				const CTYPE rowbyrow_value = DATUM_TO_CTYPE(results[i].val);
-				if (arrow_value != rowbyrow_value)
+
+				/*
+				 * Floats can also be NaN/infinite and the comparison doesn't
+				 * work in that case.
+				 */
+				if (isfinite((double) arrow_value) != isfinite((double) rowbyrow_value))
+				{
+					ereport(ERROR,
+							(errcode(ERRCODE_INTERNAL_ERROR),
+							 errmsg("the bulk decompression result does not match"),
+							 errdetail("At row %d\n", i)));
+				}
+
+				if (isfinite((double) arrow_value) && arrow_value != rowbyrow_value)
 				{
 					ereport(ERROR,
 							(errcode(ERRCODE_INTERNAL_ERROR),
@@ -85,11 +103,6 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool check_compressio
 				}
 			}
 		}
-	}
-
-	if (!check_compression)
-	{
-		return n;
 	}
 
 	/*
@@ -128,19 +141,33 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool check_compressio
 	{
 		if (r.is_null != results[nn].is_null)
 		{
-			elog(ERROR, "the decompression result doesn't match");
+			elog(ERROR, "the repeated decompression result doesn't match");
 		}
 
-		if (!r.is_null && (DATUM_TO_CTYPE(r.val) != DATUM_TO_CTYPE(results[nn].val)))
+		if (!r.is_null)
 		{
-			elog(ERROR, "the decompression result doesn't match");
+			CTYPE old_value = DATUM_TO_CTYPE(results[nn].val);
+			CTYPE new_value = DATUM_TO_CTYPE(r.val);
+			/*
+			 * Floats can also be NaN/infinite and the comparison doesn't
+			 * work in that case.
+			 */
+			if (isfinite((double) old_value) != isfinite((double) new_value))
+			{
+				elog(ERROR, "the repeated decompression result doesn't match");
+			}
+
+			if (isfinite((double) old_value) && old_value != new_value)
+			{
+				elog(ERROR, "the repeated decompression result doesn't match");
+			}
 		}
 
 		nn++;
 
 		if (nn > n)
 		{
-			elog(ERROR, "the recompression result doesn't match");
+			elog(ERROR, "the repeated recompression result doesn't match");
 		}
 	}
 
