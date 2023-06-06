@@ -6,6 +6,8 @@
 
 #include "compression/compression.h"
 
+#include <math.h>
+
 #include <access/heapam.h>
 #include <access/htup_details.h>
 #include <access/multixact.h>
@@ -2117,23 +2119,28 @@ static int (*get_decompress_fn(int algo, Oid type))(const uint8 *Data, size_t Si
 	return NULL;
 }
 
-TS_FUNCTION_INFO_V1(ts_read_compressed_data_file);
-
-/* Read and decompress compressed data from file. Useful for fuzzing. */
-Datum
-ts_read_compressed_data_file(PG_FUNCTION_ARGS)
+/*
+ * Read and decompress compressed data from file. Useful for debugging the
+ * results of fuzzing.
+ * The out parameter bytes is volatile because we want to fill it even
+ * if we error out later.
+ */
+static void
+read_compressed_data_file_impl(int algo, Oid type, const char *path, int *rows, volatile int *bytes)
 {
-	char *name = PG_GETARG_CSTRING(2);
-	FILE *f = fopen(name, "r");
+	FILE *f = fopen(path, "r");
 
 	if (!f)
 	{
-		elog(ERROR, "could not open the file '%s'", name);
+		elog(ERROR, "could not open the file '%s'", path);
 	}
 
 	fseek(f, 0, SEEK_END);
 	const size_t fsize = ftell(f);
 	fseek(f, 0, SEEK_SET); /* same as rewind(f); */
+
+	*rows = 0;
+	*bytes = fsize;
 
 	if (fsize == 0)
 	{
@@ -2141,7 +2148,7 @@ ts_read_compressed_data_file(PG_FUNCTION_ARGS)
 		 * Skip empty data, because we'll just get "no data left in message"
 		 * right away.
 		 */
-		return 0;
+		return;
 	}
 
 	char *string = palloc(fsize + 1);
@@ -2149,21 +2156,30 @@ ts_read_compressed_data_file(PG_FUNCTION_ARGS)
 
 	if (elements_read != 1)
 	{
-		elog(ERROR, "failed to read file '%s'", name);
+		elog(ERROR, "failed to read file '%s'", path);
 	}
 
 	fclose(f);
 
 	string[fsize] = 0;
 
-	int algo = get_compression_algorithm(PG_GETARG_CSTRING(0));
+	*rows = get_decompress_fn(algo, type)((const uint8 *) string, fsize, /* extra_checks = */ true);
+}
 
-	Oid type = PG_GETARG_OID(1);
+TS_FUNCTION_INFO_V1(ts_read_compressed_data_file);
 
-	int res =
-		get_decompress_fn(algo, type)((const uint8 *) string, fsize, /* extra_checks = */ true);
-
-	PG_RETURN_INT32(res);
+/* Read and decompress compressed data from file -- SQL-callable wrapper. */
+Datum
+ts_read_compressed_data_file(PG_FUNCTION_ARGS)
+{
+	int rows;
+	int bytes;
+	read_compressed_data_file_impl(get_compression_algorithm(PG_GETARG_CSTRING(0)),
+								   PG_GETARG_OID(1),
+								   PG_GETARG_CSTRING(2),
+								   &rows,
+								   &bytes);
+	PG_RETURN_INT32(rows);
 }
 
 TS_FUNCTION_INFO_V1(ts_read_compressed_data_directory);
@@ -2175,6 +2191,18 @@ TS_FUNCTION_INFO_V1(ts_read_compressed_data_directory);
 Datum
 ts_read_compressed_data_directory(PG_FUNCTION_ARGS)
 {
+    /* Output columns of this function. */
+	enum
+	{
+		out_path = 0,
+		out_bytes,
+		out_rows,
+		out_sqlstate,
+		out_location,
+		_out_columns
+	};
+
+	/* Cross-call context for this set-returning function. */
 	struct user_context
 	{
 		DIR *dp;
@@ -2182,6 +2210,7 @@ ts_read_compressed_data_directory(PG_FUNCTION_ARGS)
 	};
 
 	char *name = PG_GETARG_CSTRING(2);
+	const int algo = get_compression_algorithm(PG_GETARG_CSTRING(0));
 
 	FuncCallContext *funcctx;
 	struct user_context *c;
@@ -2195,9 +2224,6 @@ ts_read_compressed_data_directory(PG_FUNCTION_ARGS)
 
 		/* switch to memory context appropriate for multiple function calls */
 		MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
-
-		/* total number of tuples to be returned */
-		funcctx->max_calls = PG_GETARG_INT32(0);
 
 		/* Build a tuple descriptor for our result type */
 		if (get_call_result_type(fcinfo, NULL, &funcctx->tuple_desc) != TYPEFUNC_COMPOSITE)
@@ -2228,8 +2254,12 @@ ts_read_compressed_data_directory(PG_FUNCTION_ARGS)
 	funcctx = SRF_PERCALL_SETUP();
 	c = (struct user_context *) funcctx->user_fctx;
 
-	Datum values[4] = { 0 };
-	bool nulls[4] = { 0 };
+	Datum values[_out_columns] = { 0 };
+	bool nulls[_out_columns] = { 0 };
+	for (int i = 0; i < _out_columns; i++)
+	{
+		nulls[i] = true;
+	}
 
 	while ((c->ep = readdir(c->dp)))
 	{
@@ -2241,19 +2271,16 @@ ts_read_compressed_data_directory(PG_FUNCTION_ARGS)
 		char *path = psprintf("%s/%s", name, c->ep->d_name);
 
 		/* The return values are: path, ret, sqlstate, status, location. */
-		values[0] = PointerGetDatum(cstring_to_text(path));
-		nulls[1] = true;
-		nulls[2] = true;
-		nulls[3] = true;
+		values[out_path] = PointerGetDatum(cstring_to_text(path));
+		nulls[out_path] = false;
 
+		int rows;
+		volatile int bytes = 0;
 		PG_TRY();
 		{
-			int res = DatumGetInt32(DirectFunctionCall3(ts_read_compressed_data_file,
-														PG_GETARG_DATUM(0),
-														PG_GETARG_DATUM(1),
-														CStringGetDatum(path)));
-			values[1] = Int32GetDatum(res);
-			nulls[1] = false;
+			read_compressed_data_file_impl(algo, PG_GETARG_OID(1), path, &rows, &bytes);
+			values[out_rows] = Int32GetDatum(rows);
+			nulls[out_rows] = false;
 		}
 		PG_CATCH();
 		{
@@ -2261,19 +2288,23 @@ ts_read_compressed_data_directory(PG_FUNCTION_ARGS)
 
 			ErrorData *error = CopyErrorData();
 
-			values[2] = PointerGetDatum(cstring_to_text(unpack_sql_state(error->sqlerrcode)));
-			nulls[2] = false;
+			values[out_sqlstate] =
+				PointerGetDatum(cstring_to_text(unpack_sql_state(error->sqlerrcode)));
+			nulls[out_sqlstate] = false;
 
 			if (error->filename)
 			{
-				values[3] = PointerGetDatum(
+				values[out_location] = PointerGetDatum(
 					cstring_to_text(psprintf("%s:%d", error->filename, error->lineno)));
-				nulls[3] = false;
+				nulls[out_location] = false;
 			}
 
 			FlushErrorState();
 		}
 		PG_END_TRY();
+
+		values[out_bytes] = Int32GetDatum(bytes);
+		nulls[out_bytes] = false;
 
 		SRF_RETURN_NEXT(funcctx,
 						HeapTupleGetDatum(heap_form_tuple(funcctx->tuple_desc, values, nulls)));
@@ -2355,7 +2386,7 @@ ts_fuzz_compression(PG_FUNCTION_ARGS)
 						 "-verbosity=1",
 						 "-timeout=1",
 						 "-report_slow_units=1",
-						 "-use_value_profile=1",
+						 // "-use_value_profile=1",
 						 "-reload=1",
 						 psprintf("-runs=%d", PG_GETARG_INT32(2)),
 						 "corpus" /* in the database directory */,

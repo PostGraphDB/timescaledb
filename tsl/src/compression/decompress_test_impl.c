@@ -35,21 +35,26 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool extra_checks)
 	}
 
 	Datum compressed_data = definitions[algo].compressed_data_recv(&si);
-
-	ArrowArray *arrow = tsl_try_decompress_all(algo, compressed_data, PGTYPE);
-
-	DecompressionIterator *iter = definitions[algo].iterator_init_forward(compressed_data, PGTYPE);
-
-	DecompressResult results[GLOBAL_MAX_ROWS_PER_COMPRESSION];
 	int n = 0;
+
+	/*
+	 * Test row-by-row decompression. We do it before the bulk decompression
+	 * to increase coverage, because bulk decompression is more picky about
+	 * the corrupt data.
+	 */
+	DecompressionIterator *iter = definitions[algo].iterator_init_forward(compressed_data, PGTYPE);
+	DecompressResult results[GLOBAL_MAX_ROWS_PER_COMPRESSION];
 	for (DecompressResult r = iter->try_next(iter); !r.is_done; r = iter->try_next(iter))
 	{
 		results[n++] = r;
 	}
 
+	/* Test bulk decompression. */
+	ArrowArray *arrow = tsl_try_decompress_all(algo, compressed_data, PGTYPE);
+
 	if (!extra_checks)
 	{
-		return n;
+		return arrow->length;
 	}
 
 	/* Check that both ways of decompression match. */
