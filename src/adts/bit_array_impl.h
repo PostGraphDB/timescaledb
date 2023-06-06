@@ -120,6 +120,14 @@ bit_array_recv(const StringInfo buffer)
 	for (i = 0; i < num_elements; i++)
 		array.buckets.data[i] = pq_getmsgint64(buffer);
 
+	/* Zero out the padding for more predictable behavior under fuzzing. */
+	array.buckets.data[num_elements] = 0;
+	if (num_elements > 0)
+	{
+		CheckCompressedData(bits_used_in_last_bucket > 0);
+		array.buckets.data[num_elements - 1] &= -1ULL >> (64 - bits_used_in_last_bucket);
+	}
+
 	return array;
 }
 

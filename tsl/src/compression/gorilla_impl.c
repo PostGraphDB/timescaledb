@@ -36,7 +36,8 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 	bit_array_iterator_init(&leading_zeros_iterator, &leading_zeros_bitarray);
 
 	uint8 all_leading_zeros[MAX_NUM_LEADING_ZEROS_PADDED];
-	unpack_leading_zeros_array(&gorilla_data->leading_zeros, all_leading_zeros);
+	const int16 leading_zeros_padded =
+		unpack_leading_zeros_array(&gorilla_data->leading_zeros, all_leading_zeros);
 
 	int16 num_bit_widths;
 	const uint8 *restrict bit_widths =
@@ -51,10 +52,11 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 	 *
 	 * 1) unpack only the different elements (tag0 = 1) based on the tag1 array.
 	 *
-	 * 1a) Sanity check: the number of bit width values we have matches the
+	 * 1a) Sanity check: the number of bit widths we have matches the
 	 * number of 1s in the tag1s array.
 	 */
 	CheckCompressedData(simple8brle_bitmap_num_ones(&tag1s) == num_bit_widths);
+	CheckCompressedData(simple8brle_bitmap_num_ones(&tag1s) <= leading_zeros_padded);
 
 	/*
 	 * 1b) Sanity check: the first tag1 must be 1, so that we initialize the bit
@@ -76,7 +78,7 @@ FUNCTION_NAME(gorilla_decompress_all, ELEMENT_TYPE)(CompressedGorillaData *goril
 	 */
 	ELEMENT_TYPE prev = 0;
 	int next_bit_widths_index = 0;
-	int next_leading_zeros_index = 0;
+	int16 next_leading_zeros_index = 0;
 	uint8 current_leading_zeros = 0;
 	uint8 current_xor_bits = 0;
 	ELEMENT_TYPE *restrict decompressed_values = palloc(sizeof(ELEMENT_TYPE) * n_total_padded);

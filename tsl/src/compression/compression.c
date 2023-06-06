@@ -2191,7 +2191,7 @@ TS_FUNCTION_INFO_V1(ts_read_compressed_data_directory);
 Datum
 ts_read_compressed_data_directory(PG_FUNCTION_ARGS)
 {
-    /* Output columns of this function. */
+	/* Output columns of this function. */
 	enum
 	{
 		out_path = 0,
@@ -2383,11 +2383,14 @@ ts_fuzz_compression(PG_FUNCTION_ARGS)
 	MemoryContext old_context = MemoryContextSwitchTo(fuzzing_context);
 
 	char *argvdata[] = { "PostgresFuzzer",
-						 "-verbosity=1",
 						 "-timeout=1",
 						 "-report_slow_units=1",
 						 // "-use_value_profile=1",
 						 "-reload=1",
+						 //"-print_coverage=1",
+						 //"-print_full_coverage=1",
+						 //"-print_final_stats=1",
+						 //"-help=1",
 						 psprintf("-runs=%d", PG_GETARG_INT32(2)),
 						 "corpus" /* in the database directory */,
 						 NULL };
