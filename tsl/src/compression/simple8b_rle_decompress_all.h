@@ -81,7 +81,7 @@ FUNCTION_NAME(simple8brle_decompress_all, ELEMENT_TYPE)(Simple8bRleSerialized *c
 		 * produces, which is easier for testing.                                                  \
 		 */                                                                                        \
 		const uint8 bits_per_value = SIMPLE8B_BIT_LENGTH[X];                                       \
-		CheckCompressedData(bits_per_value / 8 < sizeof(ELEMENT_TYPE));                            \
+		CheckCompressedData(bits_per_value / 8 <= sizeof(ELEMENT_TYPE));                           \
                                                                                                    \
 		/*                                                                                         \
 		 * The last block might have less values than normal, but we have                          \
