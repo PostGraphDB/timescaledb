@@ -20,7 +20,7 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool extra_checks)
 {
 	StringInfoData si = { .data = (char *) Data, .len = Size };
 
-	int algo = pq_getmsgbyte(&si);
+	const int algo = pq_getmsgbyte(&si);
 
 	CheckCompressedData(algo > 0 && algo < _END_COMPRESSION_ALGORITHMS);
 
@@ -36,20 +36,20 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool extra_checks)
 
 	Datum compressed_data = definitions[algo].compressed_data_recv(&si);
 
-	/* Test bulk decompression. */
-	ArrowArray *arrow = tsl_try_decompress_all(algo, compressed_data, PGTYPE);
-
 	if (!extra_checks)
 	{
 		/*
 		 * For routine fuzzing, we only run bulk decompression to make it faster
 		 * and the coverage space smaller.
 		 */
+		tsl_try_decompress_all(algo, compressed_data, PGTYPE);
 		return 0;
 	}
 
 	/*
-	 * Test row-by-row decompression.
+	 * For normal testing, as opposed to the fuzzing code path above, run
+	 * row-by-row decompression first, so that it's not masked by the more
+	 * strict correctness checks of bulk decompression.
 	 */
 	DecompressionIterator *iter = definitions[algo].iterator_init_forward(compressed_data, PGTYPE);
 	DecompressResult results[GLOBAL_MAX_ROWS_PER_COMPRESSION];
@@ -64,6 +64,8 @@ FUNCTION_NAME(ALGO, CTYPE)(const uint8 *Data, size_t Size, bool extra_checks)
 		results[n++] = r;
 	}
 
+	/* Test bulk decompression. */
+	ArrowArray *arrow = tsl_try_decompress_all(algo, compressed_data, PGTYPE);
 
 	/* Check that both ways of decompression match. */
 	if (arrow)

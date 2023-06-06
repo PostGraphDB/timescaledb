@@ -1550,19 +1550,18 @@ from ts_read_compressed_data_directory('gorilla', 'float8', (:'TEST_INPUT_DIR' |
 group by 2 order by 1 desc;
  count | result 
 -------+--------
-    56 | XX001
-    46 | true
-     2 | 08P01
-     1 | false
-(4 rows)
+   227 | XX001
+    53 | true
+    22 | 08P01
+(3 rows)
 
 select count(*), coalesce((rows >= 0)::text, sqlstate) result
 from ts_read_compressed_data_directory('deltadelta', 'int8', (:'TEST_INPUT_DIR' || '/fuzzing/compression/deltadelta-int8')::cstring)
 group by 2 order by 1 desc;
  count | result 
 -------+--------
-   146 | XX001
-   126 | true
+   157 | XX001
+    80 | true
     13 | 08P01
      1 | false
 (4 rows)
