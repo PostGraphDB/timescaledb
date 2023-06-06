@@ -1438,13 +1438,14 @@ SELECT "time","hin"::text,"model"::text,"block"::text,"message_name"::text,"sign
  Custom Scan (DecompressChunk) on _timescaledb_internal._hyper_11_23_chunk (actual rows=1 loops=1)
    Output: _hyper_11_23_chunk."time", (_hyper_11_23_chunk.hin)::text, (_hyper_11_23_chunk.model)::text, (_hyper_11_23_chunk.block)::text, (_hyper_11_23_chunk.message_name)::text, (_hyper_11_23_chunk.signal_name)::text, _hyper_11_23_chunk.signal_numeric_value, (_hyper_11_23_chunk.signal_string_value)::text
    Sorted merge append: true
+   Bulk Decompression: false
    ->  Sort (actual rows=1 loops=1)
          Output: compress_hyper_12_24_chunk."time", compress_hyper_12_24_chunk.hin, compress_hyper_12_24_chunk.model, compress_hyper_12_24_chunk.block, compress_hyper_12_24_chunk.message_name, compress_hyper_12_24_chunk.signal_name, compress_hyper_12_24_chunk.signal_numeric_value, compress_hyper_12_24_chunk.signal_string_value, compress_hyper_12_24_chunk._ts_meta_count, compress_hyper_12_24_chunk._ts_meta_sequence_num, compress_hyper_12_24_chunk._ts_meta_min_1, compress_hyper_12_24_chunk._ts_meta_max_1
          Sort Key: compress_hyper_12_24_chunk._ts_meta_max_1 DESC
          Sort Method: quicksort 
          ->  Seq Scan on _timescaledb_internal.compress_hyper_12_24_chunk (actual rows=1 loops=1)
                Output: compress_hyper_12_24_chunk."time", compress_hyper_12_24_chunk.hin, compress_hyper_12_24_chunk.model, compress_hyper_12_24_chunk.block, compress_hyper_12_24_chunk.message_name, compress_hyper_12_24_chunk.signal_name, compress_hyper_12_24_chunk.signal_numeric_value, compress_hyper_12_24_chunk.signal_string_value, compress_hyper_12_24_chunk._ts_meta_count, compress_hyper_12_24_chunk._ts_meta_sequence_num, compress_hyper_12_24_chunk._ts_meta_min_1, compress_hyper_12_24_chunk._ts_meta_max_1
-(9 rows)
+(10 rows)
 
 SELECT "time","hin"::text,"model"::text,"block"::text,"message_name"::text,"signal_name"::text,"signal_numeric_value","signal_string_value"::text FROM :chunk_table_bugtab ORDER BY "time" DESC;
            time           |   hin   |  model   |  block  | message_name | signal_name | signal_numeric_value | signal_string_value 
